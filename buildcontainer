@@ -1,0 +1,47 @@
+#!/bin/sh
+
+usage()
+{
+	printf "usage: buildcontainer path-to-source\n" 1>&2
+	exit 1
+}
+
+CURRENTDIR=$(pwd)
+
+SRCDIR="$1"
+if [ "$SRCDIR" = "" ]
+then
+	usage
+fi
+
+if [ ! -d "$SRCDIR" ]
+then
+	printf "%s is not a directory\n", "$SRCDIR"
+	exit 1
+fi
+
+# spot check
+if [ ! -f "$SRCDIR"/ssgl/ssgl_server.c -o -f "$SRCDIR"/Dockerfile ]
+then
+	printf "%s does not look like source code for space-nerds-in-space.\n" "$SRCDIR" 1>&2
+	exit 1
+fi
+
+printf "Copying Dockerfile to %s\n", "$SRCDIR"
+cp ./Dockerfile "$SRCDIR"/Dockerfile || exit 1
+
+cd "$SRCDIR" || exit 1
+
+NEWDIR=$(pwd)
+
+printf "Building docker container\n"
+
+# newgrp changes real group id and creates a sub-shell and runs as that GID.
+newgrp docker << EOF
+docker build -t space-nerds-in-space .
+EOF
+
+printf "Cleaning up.\n"
+/bin/rm ./Dockerfile
+
+
