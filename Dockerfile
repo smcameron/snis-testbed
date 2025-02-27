@@ -3,6 +3,7 @@ FROM debian:latest
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     build-essential \
+    coreutils \
     liblua5.2-dev \
     libcrypt-dev \
     libcurl4-openssl-dev \
@@ -11,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     iproute2 \
     net-tools \
+    iputils-ping \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 #
@@ -37,5 +40,5 @@ WORKDIR /usr/src/space-nerds-in-space
 
 COPY --chown=$USERNAME:$USERNAME . .
 
-RUN make bin/snis_server bin/snis_multiverse bin/snis_launcher bin/ssgl_server bin/lsssgl 2>&1 | tee /tmp/build.log
+RUN make bin/snis_server bin/snis_multiverse bin/snis_launcher bin/ssgl_server bin/lsssgl bin/snis_update_assets 2>&1 | tee /tmp/build.log
 
