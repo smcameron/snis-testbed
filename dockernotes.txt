@@ -103,17 +103,6 @@ docker stats
 docker rmi imagename
 	removes a docker image
 
-docker network ls
-	list current docker networks
-
-	NETWORK ID     NAME      DRIVER    SCOPE
-	29fa509b0f6b   bridge    bridge    local
-	2c6e1dfd2337   host      host      local
-	123f369316a8   none      null      local
-
-	DRIVER means "network type"
-
-
 Docker network stuff:
 ---------------------
 
