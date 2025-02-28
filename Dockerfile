@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping \
     ca-certificates \
     iptables \
+    inetutils-traceroute \
     && rm -rf /var/lib/apt/lists/*
 
 #
