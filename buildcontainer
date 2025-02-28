@@ -6,9 +6,60 @@ usage()
 	exit 1
 }
 
+print_dockerfile_menu()
+{
+
+	printf "\n\nSelect configuration\n\n"
+	n=1
+	for x in dockerfiles/*
+	do
+		filename=$(echo $x | sed -e 's/^dockerfiles.//' | sed -e 's/[.]dockerfile$//')
+		printf "  %4d. %s\n"  $n  $filename
+		n=$(expr $n + 1)
+	done
+	printf "     Q to quit\n\n"
+}
+
+choose_dockerfile()
+{
+	answer = ""
+	while [ "$answer" = "" ]; do
+		print_dockerfile_menu
+
+		printf "     Enter choice: "
+		read -r choice 
+		echo "$choice" | grep '^[ ]*[qQ]' > /dev/null
+		if [ "$?" = "0" ]
+		then
+			exit 0;
+		fi
+
+		answer=""
+		n=1
+		for x in dockerfiles/*
+		do
+			filename=$(echo $x | sed -e 's/^dockerfiles.//' | sed -e 's/[.]dockerfile$//')
+			menuitem=$(printf "  %4d. %s"  $n  $filename)
+			pattern=$(printf "%4s[.]" $choice)
+			echo " $menuitem" | grep "$pattern" > /dev/null
+			if [ "$?" = "0" ]
+			then
+				answer="$x"
+				break;
+			fi
+			n=$(expr $n + 1)
+		done
+		printf "\n\n"
+	done
+	CONFIG="$answer"
+}
+
+
 CURRENTDIR=$(pwd)
 
 SRCDIR="$1"
+CONFIG="$2"
+
 if [ "$SRCDIR" = "" ]
 then
 	usage
@@ -27,18 +78,44 @@ then
 	exit 1
 fi
 
-printf "Copying Dockerfile to %s\n", "$SRCDIR"
-cp ./dockerfiles/snis-server-multiverse-ssgl-bridged.dockerfile "$SRCDIR"/Dockerfile || exit 1
+if [ "$CONFIG" = "" ]
+then
+	choose_dockerfile
+fi
+
+if [ ! -f "$CONFIG" ]
+then
+	printf "%s is not a regular file\n" "$CONFIG"
+	exit 1
+fi
+
+echo "$CONFIG" | grep '[.]dockerfile$' > /dev/null
+if [ "$?" != "0" ]
+then
+	printf "%s does not ended with \'.dockerfile\'\n" "$CONFIG"
+	exit 1
+fi
+
+IMAGENAME=$(echo "$CONFIG" | sed -e 's/^dockerfiles[/]//' | sed -e 's/[.]dockerfile$//')
+echo "$IMAGENAME" | grep '[a-zA-Z]' > /dev/null
+if [ "$?" != "0" ]
+then
+	printf "%s does not produce a suitable image name.\n" "$CONFIG"
+	exit 1
+fi
+
+printf "\n\nCopying %s to %s\n\n"  "$CONFIG" "$SRCDIR"
+cp "$CONFIG" "$SRCDIR"/Dockerfile || exit 1
 
 cd "$SRCDIR" || exit 1
 
 NEWDIR=$(pwd)
 
-printf "Building docker container\n"
+printf "Building docker container image $IMAGENAME\n"
 
 # newgrp changes real group id and creates a sub-shell and runs as that GID.
 newgrp docker << EOF
-docker build -t space-nerds-in-space .
+docker build -t "$IMAGENAME" .
 EOF
 
 printf "Cleaning up.\n"
