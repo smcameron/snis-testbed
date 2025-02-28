@@ -194,6 +194,32 @@ docker network create
 			docker had virtual routers, or something to route between the vlans without a
 			physical router being involved.
 
+			Here's maybe how to do it without having to involve your physical router.
+			(I haven't tried this yet).  On the host, create a virtual network interface
+			for each subnet, and give it an IP address on each subnet.  For each container
+			on each subnet, set the default gateway to the hosts IP address on that subnet.
+			Then the host acts as the router, and no fiddling with vendor specific
+			routing hardware.
+
+			E.g.: from here: https://linuxconfig.org/configuring-virtual-network-interfaces-in-linux
+			(WARNING I have not tried this):
+
+
+			Repeat for all docker subnets:
+
+				$ sudo modprobe dummy # load dummy module allowing creation of virtual network interfaces
+				$ sudo ip link add eth0 type dummy
+				$ ip link show eth0
+				$ sudo ifconfig eth0 hw ether C8:D7:4A:4E:47:50 # give it a MAC address (make it up?)
+
+				Now give it an IP address on the desired subnet
+
+				$ sudo ip addr add 192.168.95.1/24 brd + dev eth0 label eth0:0
+
+				Bring the interface up
+
+				$ sudo ip link set dev eth0 up
+
 docker inspect
 	docker inspect network-name
 	E.g: "docker inspect bridge"
