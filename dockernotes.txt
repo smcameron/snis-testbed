@@ -1,0 +1,81 @@
+
+To anyone reading this, you should know I've been using docker for slightly
+more than one day, so do not take any of this as anything but the scribblings of
+an ignorant amateur.
+
+Installed docker engine according to these instructions:
+
+https://docs.docker.com/engine/install/ubuntu/
+
+on advice from dfirebaugh.  He says the distro apt packages tend to
+be old enough to cause problems.
+
+Note about "docker" unix group-id:
+
+Generally, you want your real group id to be "docker" when
+executing the "docker" command.  So you should open a new
+terminal for docker operations, and do "newgrp docker" to
+change your real group ID to docker.
+
+Otherwise you will have sudo and run docker as root, which is not
+ideal.  Note, if you go tromping around touching/creating lots of
+files, all those files will get tagged with group of "docker",
+which you may not want, so exercise discipline in what you do
+after the "newgrp".  
+
+Note also that newgrp starts a new shell, so you can "exit" to get
+back to your regular group.  If you want to do "newgrp" inside of a
+shellscript, do this:
+
+	newgrp docker<<EOF
+	put docker commands here
+	EOF
+
+Various docker commands:
+
+docker pull ubuntu[:tag] 
+	download ubuntu docker image from https://hub.docker.com/search
+	optionally a tagged version.
+
+docker image ls
+docker image list
+	show docker images you have
+	the <none> <none> images that may show up are "layers"
+	sometimes there can be dangling "<none> <none>" images that take up space,
+	which you can find by:
+
+		docker images -f "dangling=true" -q
+
+	and remove by:
+
+		docker rmi $(docker images -f "dangling=true" -q)
+
+
+docker run -d -t --name hostname ubuntu 
+		create a new docker instance? named "hostname" using image "ubuntu"
+		-d means "detached"
+		-t means allocate a pseudo-TTY
+
+		-p port:port maps host port to container port, e.g. "-p 80:80" for http, etc.
+
+docker ps
+	show docker containers (by default, only running containers)
+	-a - show all containers
+
+docker exec -it hostname bash
+	execute bash shell in hostname
+	-i = interactive
+	-t = tty
+
+docker stop containername
+	stop container (does not delete container)
+
+docker start containername
+	restarts stopped container
+
+docker stats
+	shows stats of all containers
+
+docker rmi imagename
+	removes a docker image
+
