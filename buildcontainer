@@ -28,7 +28,7 @@ then
 fi
 
 printf "Copying Dockerfile to %s\n", "$SRCDIR"
-cp ./Dockerfile "$SRCDIR"/Dockerfile || exit 1
+cp ./dockerfiles/snis-server-multiverse-ssgl-bridged.dockerfile "$SRCDIR"/Dockerfile || exit 1
 
 cd "$SRCDIR" || exit 1
 
