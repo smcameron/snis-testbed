@@ -1,0 +1,101 @@
+# This file is meant to be sourced (included) by other shell scripts
+
+
+exit_if_group_not_docker()
+{
+	# Check if our group is "docker"
+	id | awk '{ print $2 }' | grep '[(]docker[)]' > /dev/null
+	if [ "$?" != "0" ]
+	then
+		echo "You must have real group ID == 'docker' to run this script." 1>&2
+		exit 1
+	fi
+}
+
+exit_if_no_such_docker_image()
+{
+	image="$1"
+	docker image list | grep '^'"$image"' ' > /dev/null
+	if [ "$?" != 0 ]
+	then
+		echo "Docker image $image doesn't seem to exist." 1>&2
+		exit 1
+	fi
+}
+
+run_or_start_docker_container()
+{
+	container="$1"
+	image="$2"
+	docker ps | grep ' '"$container"'$' > /dev/null
+	if [ "$?" = "0" ]
+	then
+		echo "container $container already running."
+	else
+		docker ps -a | grep ' '"$container"'$' > /dev/null
+		if [ "$?" = "0" ]
+		then
+			echo "Starting container $container"
+			docker start $container
+			if [ "$?" != "0" ]
+			then
+				echo "Failed to start container $container"
+				eixt 1
+			fi
+			return 0;
+		fi
+		echo "Running container $container"
+		docker run -idt --name "$container" snis-server-multiverse-ssgl
+		if [ "$?" != "0" ]
+		then
+			echo "Failed to run docker container $container with image $image" 1>&2
+			exit 1
+		fi
+		return 0
+	fi
+}
+
+stop_docker_container()
+{
+	NAME="$1"
+	docker ps | grep ' '"$NAME"'$' > /dev/null
+	if [ "$?" = 0 ]
+	then
+		echo "Stopping container $NAME"
+		docker stop "$NAME" 
+		return;
+	fi
+	docker ps -a | grep ' '"$NAME"'$' > /dev/null
+	if [ "$?" = 0 ]
+	then
+		echo "Container $NAME already stopped."
+		echo
+	fi
+}
+
+remove_docker_container()
+{
+	NAME="$1"
+	docker ps | grep ' '"$NAME"'$' > /dev/null
+	if [ "$?" = 0 ]
+	then
+		echo "Can't remove docker container $NAME, as it is still running."
+		exit 1
+	fi
+	docker ps -a | grep ' '"$NAME"'$' > /dev/null
+	if [ "$?" = 0 ]
+	then
+		echo "Removing container $NAME"
+		docker rm "$NAME"
+	else
+		echo "Container $NAME doesn't exist."
+	fi
+}
+
+stop_and_remove_docker_container()
+{
+	NAME="$1"
+	stop_docker_container "$NAME"
+	remove_docker_container "$NAME"
+}
+
