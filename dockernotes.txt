@@ -21,7 +21,7 @@ Otherwise you will have sudo and run docker as root, which is not
 ideal.  Note, if you go tromping around touching/creating lots of
 files, all those files will get tagged with group of "docker",
 which you may not want, so exercise discipline in what you do
-after the "newgrp".  
+after the "newgrp".
 
 Note also that newgrp starts a new shell, so you can "exit" to get
 back to your regular group.  If you want to do "newgrp" inside of a
@@ -32,8 +32,9 @@ shellscript, do this:
 	EOF
 
 Various docker commands:
+------------------------
 
-docker pull ubuntu[:tag] 
+docker pull ubuntu[:tag]
 	download ubuntu docker image from https://hub.docker.com/search
 	optionally a tagged version.
 
@@ -51,24 +52,47 @@ docker image list
 		docker rmi $(docker images -f "dangling=true" -q)
 
 
-docker run -d -t --name hostname ubuntu 
+docker run -d -t --name hostname ubuntu
 		create a new docker instance? named "hostname" using image "ubuntu"
 		-d means "detached"
 		-t means allocate a pseudo-TTY
-
+		-i means interactive
+		--rm means it will remove itself when it is stopped
+		--name name-of-container
 		-p port:port maps host port to container port, e.g. "-p 80:80" for http, etc.
+		--network network-name
+			special network-name of "host" means container just shares network interface(s)
+			with the host.
+			See also: "docker network create", below
+		--ip ip-address
+			give container an IP address, useful on macvlan network type.
+
+		You can do:
+			docker run -it --name hostname image bash
+
+		but when you exit bash, the container will stop.  Stopped containers
+		won't show up in "docker ps" output (only "docker ps -a"). Instead you can do:
+
+			docker run -itd --name hostname image # create detached process/container
+			docker exect -it hostname bash # exec bash in the named container
+
+		and when you exit bash the container won't be stopped, and you can "exec" into
+		it again later.
+
+		to attach to hostname with bash
 
 docker ps
 	show docker containers (by default, only running containers)
 	-a - show all containers
+	will also show what ports are exposed
 
 docker exec -it hostname bash
 	execute bash shell in hostname
 	-i = interactive
 	-t = tty
 
-docker stop containername
-	stop container (does not delete container)
+docker stop containername [ containername ... ]
+	stop container(s) (does not delete container, unless container was run with --rm)
 
 docker start containername
 	restarts stopped container
@@ -78,4 +102,141 @@ docker stats
 
 docker rmi imagename
 	removes a docker image
+
+docker network ls
+	list current docker networks
+
+	NETWORK ID     NAME      DRIVER    SCOPE
+	29fa509b0f6b   bridge    bridge    local
+	2c6e1dfd2337   host      host      local
+	123f369316a8   none      null      local
+
+	DRIVER means "network type"
+
+
+Docker network stuff:
+---------------------
+
+docker network ls
+	show networks
+
+	$ docker network ls
+	NETWORK ID     NAME      DRIVER    SCOPE
+	29fa509b0f6b   bridge    bridge    local
+	2c6e1dfd2337   host      host      local
+	123f369316a8   none      null      local
+
+docker network rm network-name
+	removes named network (if containers are on the network, you won't be able to remove it.)
+
+docker network create network-name
+docker network create
+	Create a new named network
+
+	-d network-driver
+		network-driver is the type of network.  Default is "bridge".
+	--subnet subnet-spec
+	--gateway gateway-address
+	-o parent=interface
+	--ip-range
+
+	Other network drivers:
+		macvlan
+			containers get their own MAC addresses on same port as host
+			Means they connect to your router
+
+			docker create network -d macvlan --subnet 192.168.1.0/24 \
+				--gateway 192.168.1.1 -o parent=wlp0s20f3 your-network-name
+
+			where wlp0s20f3 is the name of the host network interface from
+			"ip address show".
+
+			You *must* connect your macvlan net to a physical network interface.
+
+			when you run a container on macvlan network, you have to give it ip addr
+			with "--ip" flag of "docker run" command.
+
+			NOTE: it may be the case that switches and routers get confused by having
+				multiple MAC addresses showing up on the same physical port.
+			NOTE: You need to enable promiscuous mode on the host interface for macvlan
+				to work. See below.
+
+			macvlan networks have two modes. "bridge" mode (default) and 802.1q
+			(I'm going to ignore this for now.)
+
+		ipvlan (layer 2)
+
+			Same as macvlan, except the virtual network interfaces share the same MAC
+			addresses as the host. (Eliminates need for promiscuous mode, problems with
+			switches and routers not handling multiple MAC addresses on a single physical
+			port.)  So should behave better, so long as networking equipment doesn't mind
+			seeing many IP addresses all sharing a MAC address.
+
+			docker create network -d ipvlan --subnet 192.168.95.0/24 --gateway 192.168.1.1 \
+				-o parent=wlp0s20f3 your-network-name
+
+			As with macvlan, containers must be told their IP address with --ip option of
+			"docker run" command.
+
+		ipvlan (layer 3)
+
+			Example, creating 2 subnets:
+
+			docker create network -d ipvlan --subnet 192.168.95.0/24 \
+				-o parent=wlp0s20f3 -o ipvlan_mode=l3 \
+				--subnet 192.168.96.0/24 your-network-name
+
+			If you want to create multiple subnets on the same physical interface, you
+			must do it in a single "docker create network" command.
+
+			Note: you have to create static routes in your router for, say, 192.168.1.xxx to
+			know how to route to 192.168.95.xxx, so that's a pain in the ass.  I was hoping
+			docker had virtual routers, or something to route between the vlans without a
+			physical router being involved.
+
+docker inspect
+	docker inspect network-name
+	E.g: "docker inspect bridge"
+	show stuff about bridge, like network address, netmask,
+	what containers are connected and the containers' IP addrs
+
+
+General unix/linux network stuff:
+---------------------------------
+
+ip address show
+	show this hosts network interfaces, ip addresses, MAC addresses, etc.
+	(the "new" way to do "ifconfig -a")
+
+bridge link
+	show interface names and what's bridged
+
+ip route
+	show routing table ("new" way to do "netstat -r")
+
+	Compare:
+                        $ netstat -nr
+                        Kernel IP routing table
+                        Destination     Gateway         Genmask         Flags   MSS Window  irtt Iface
+Default route ---->     0.0.0.0         192.168.1.1     0.0.0.0         UG        0 0          0 wlp0s20f3
+"link-local"  ---->     169.254.0.0     0.0.0.0         255.255.0.0     U         0 0          0 wlp0s20f3
+route to docker net --> 172.17.0.0      0.0.0.0         255.255.0.0     U         0 0          0 docker0
+route to host LAN -->   192.168.1.0     0.0.0.0         255.255.255.0   U         0 0          0 wlp0s20f3
+
+                        $ ip route
+Default route ---->     default via 192.168.1.1 dev wlp0s20f3 proto dhcp metric 600
+"link-local"  ---->     169.254.0.0/16 dev wlp0s20f3 scope link metric 1000
+route to docker net --> 172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown
+route to host LAN -->   192.168.1.0/24 dev wlp0s20f3 proto kernel scope link src 192.168.1.169 metric 600
+
+ip link set interface-name promisc on
+	Enable promiscuous mode on an interface ("ip address show" to see interfaces).
+	Useful for macvlan network types.
+
+Acknowledgments:
+----------------
+
+Most of the information in this file was gleaned from this video:
+https://www.youtube.com/watch?v=bKFMS5C4CG0 by "NetworkChuck"
+
 
