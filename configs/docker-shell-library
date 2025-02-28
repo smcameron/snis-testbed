@@ -45,7 +45,7 @@ run_or_start_docker_container()
 			return 0;
 		fi
 		echo "Running container $container"
-		docker run -idt --name "$container" snis-server-multiverse-ssgl
+		docker run -idt --name "$container" "$image" 
 		if [ "$?" != "0" ]
 		then
 			echo "Failed to run docker container $container with image $image" 1>&2
