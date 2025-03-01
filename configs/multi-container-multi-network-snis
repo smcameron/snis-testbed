@@ -1,0 +1,192 @@
+#!/bin/sh
+
+NAME="multi-container-multi-network-snis"
+
+echo
+echo "This configuration creates a number of ipvlan level 3 networks,"
+echo "setups up routing between them using the host as a router by setting"
+echo "up virtual network interfaces on each network and adding routes to"
+echo "the routing table."
+echo
+echo "and ... TBD"
+echo
+
+# Source a litte docker shell library
+if [ -f ./docker-shell-library ]
+then
+	. ./docker-shell-library
+else
+	if [ -f ./configs/docker-shell-library ]
+	then
+		. ./configs//docker-shell-library
+	fi
+fi
+
+exit_if_group_not_docker
+
+usage()
+{
+	printf "Usage: $0 [ setup | teardown ]\n" 1>&2
+	exit 1
+}
+
+set_up_virtual_network_interface()
+{
+	INTERFACE="$1"
+	NETWORK="$2"
+	MACADDRESS="$3"
+	VLANID="$4"
+
+	if [ "$INTERFACE" = "" -o "$NETWORK" = "" -o "$MACADDRESS" = "" -o "$VLANID" = "" ]
+	then
+		echo "set_up_virtual_network_interfaces requires interface, network, mac-addr and vlan-id params" 1>&2
+		exit 1
+	fi
+
+	echo sudo ip link add "$INTERFACE" type dummy
+	sudo ip link add "$INTERFACE" type dummy
+	echo sudo ifconfig "$INTERFACE" hw ether "$MACADDRESS" 
+	sudo ifconfig "$INTERFACE" hw ether "$MACADDRESS" 
+	echo sudo ip addr add "$NETWORK" brd + dev "$INTERFACE" label "$INTERFACE"':0'
+	sudo ip addr add "$NETWORK" brd + dev "$INTERFACE" label "$INTERFACE"':'"$VLANID"
+	echo sudo ip link set dev "$INTERFACE" up
+	sudo ip link set dev "$INTERFACE" up
+	
+}
+
+tear_down_virtual_network_interface()
+{
+	INTERFACE="$1"
+
+	if [ "$INTERFACE" = "" ]
+	then
+		echo "tear_down_virtual_network_interface requires an interface parameter." 1>&2
+		exit 1
+	fi
+
+	echo sudo ip link set dev "$INTERFACE" down
+	sudo ip link set dev "$INTERFACE" down
+	echo sudo ip address flush dev "$INTERFACE" scope global
+	sudo ip address flush dev "$INTERFACE" scope global
+	echo sudo ip link del "$INTERFACE"
+	sudo ip link del "$INTERFACE"
+}
+
+
+set_up_virtual_network_interfaces()
+{
+	echo "Setting up virtual network interfaces (we will need to be root for this)"
+
+	echo "1. Load 'dummy' kernel module to allow for virtual network interfaces"
+	sudo modprobe dummy
+	if [ "$?" != "0" ]
+	then
+		echo "Failed to modprobe dummy."
+		exit 1;
+	fi
+
+	echo "2. Create virtual network interfaces snis1, snis2 and snis3"
+	set_up_virtual_network_interface snis1 10.1.1.1/24 C8:AA:BB:CC:DD:00 10
+	set_up_virtual_network_interface snis2 10.1.2.1/24 C8:AA:BB:CC:DD:11 20
+	set_up_virtual_network_interface snis3 10.1.3.1/24 C8:AA:BB:CC:DD:22 30
+}
+
+tear_down_docker_networks()
+{
+	echo "Tearing down docker networks"
+	docker network rm snisnet-1
+	docker network rm snisnet-2
+	docker network rm snisnet-3
+}
+
+set_up_docker_networks()
+{
+	echo "Setting up docker networks"
+	docker network create -d ipvlan --subnet 10.1.1.0/24 -o parent=snis1.10 -o ipvlan_mode=l3 snisnet-1
+	docker network create -d ipvlan --subnet 10.1.2.0/24 -o parent=snis2.20 -o ipvlan_mode=l3 snisnet-2
+	docker network create -d ipvlan --subnet 10.1.3.0/24 -o parent=snis3.30 -o ipvlan_mode=l3 snisnet-3
+}
+
+setup()
+{
+	echo "Setting up $NAME"
+
+	exit_if_no_such_docker_image snis-server-multiverse-ssgl
+	exit_if_no_such_docker_image snis-server-mv-ssgl-with-assets
+
+	set_up_virtual_network_interfaces
+
+	set_up_docker_networks
+
+#	echo "Setting up bridge network 172.25.25.0/24 snis-net"
+#	docker network create -d bridge --subnet 172.25.25.0/24 snis-net
+
+#	echo "Setting up ssgl-container"
+#	run_docker_container "ssgl-container" "snis-server-multiverse-ssgl" "172.25.25.100" snis-net
+#	docker exec -d ssgl-container sh -c 'bin/ssgl_server'
+#
+#	echo "Setting up snis-multiverse-container"
+#	run_docker_container "snis-multiverse-container" "snis-server-multiverse-ssgl" "172.25.25.101" snis-net
+#	docker exec -d snis-multiverse-container sh -c \
+#		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+#		bin/snis_multiverse --allow-remote-networks -L snisnet -l 172.25.25.100 -n - -L -'
+#
+#	echo "Setting up snis-server-default-container"
+#	run_docker_container "snis-server-default-container" "snis-server-mv-ssgl-with-assets" "172.25.25.10" snis-net
+#	docker exec -d snis-server-default-container sh -c \
+#		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+#		bin/snis_update_assets --force --destdir /home/snis/.local/share/space-nerds-in-space --srcdir ./share/snis &&  \
+#		bin/snis_server --allow-remote-networks -L DEFAULT -m snisnet -s default -l 172.25.25.100 -p 45000'
+#
+#	echo "Setting up snis-server-polaris-container"
+#	run_docker_container "snis-server-polaris-container" "snis-server-mv-ssgl-with-assets" "172.25.25.20" snis-net
+#	docker exec -d snis-server-polaris-container sh -c \
+#		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+#		bin/snis_update_assets --force --destdir /home/snis/.local/share/space-nerds-in-space --srcdir ./share/snis &&  \
+#		bin/snis_server --allow-remote-networks -L POLARIS -m snisnet -s polaris -l 172.25.25.100 -p 45000'
+#
+#	echo "Setting up snis-server-karado-container"
+#	run_docker_container "snis-server-karado-container" "snis-server-mv-ssgl-with-assets" "172.25.25.30" snis-net
+#	docker exec -d snis-server-karado-container sh -c \
+#		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+#		bin/snis_update_assets --force --destdir /home/snis/.local/share/space-nerds-in-space --srcdir ./share/snis &&  \
+#		bin/snis_server --allow-remote-networks -L KARADO -m snisnet -s karado -l 172.25.25.100 -p 45000'
+#
+#
+#	printf "\n\nConnect your local snis_client to lobby at 172.25.25.100\n\n"
+	return 0;
+}
+
+teardown()
+{
+	echo "Tearing down $NAME"
+
+	tear_down_virtual_network_interface snis1 10.1.1.1/24
+	tear_down_virtual_network_interface snis2 10.1.2.1/24
+	tear_down_virtual_network_interface snis3 10.1.3.1/24
+
+	tear_down_docker_networks
+
+#	stop_and_remove_docker_container "snis-server-karado-container"
+#	stop_and_remove_docker_container "snis-server-polaris-container"
+#	stop_and_remove_docker_container "snis-server-default-container"
+#	stop_and_remove_docker_container "snis-multiverse-container"
+#	stop_and_remove_docker_container "ssgl-container"
+#	echo "Tearing down snis-net"
+#	docker network rm snis-net
+	return $?
+}
+
+case "$1" in
+	setup)
+		setup
+		return $?
+		;;
+	teardown)
+		teardown
+		return $?
+		;;
+	*)
+		usage
+		;;
+esac
