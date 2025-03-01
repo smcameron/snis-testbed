@@ -31,8 +31,25 @@ shellscript, do this:
 	put docker commands here
 	EOF
 
+An important distinction must be made between docker *images* and
+docker *containers*.  A docker image is like a snapshot of the
+filesystem that a container will start up with.  A docker container
+is an environment for processes to run in that begins with a docker
+image and a process (which may fork/exec more processes in the container).
+If the processes in the container writes to the filesystem, they do so
+in a kind of overlay, so that the original image they started with is
+unchanged, but from inside the container, it appears to change.  You
+may start many docker containers from a single docker image.  Building
+and image *seems* to work by running stuff in the container, then taking
+a snapshot of the filesystem at the end (I don't know if that's really
+how it works, it's an educated guess.)
+
 Various docker commands:
 ------------------------
+
+docker build -t image-name .
+	build a docker image from the current directory. It is expected
+	there will be a Dockerfile named Dockerfile in the current directory.
 
 docker pull ubuntu[:tag]
 	download ubuntu docker image from https://hub.docker.com/search
@@ -79,7 +96,18 @@ docker run -d -t --name hostname ubuntu
 		and when you exit bash the container won't be stopped, and you can "exec" into
 		it again later.
 
-		to attach to hostname with bash
+docker attach container-name
+
+	Attach to a container, will get you a shell in the running process.  If you exit
+	the shell, the container will stop.
+
+	How to detach from a container (three ways):
+
+	1.  IF the container was started with -i -t, press ctrl-p ctrl-q
+	2.  IF the container was started with -i, but NOT -t, ctrl-c will work.
+	3.  pkill -9 -f 'docker.*attach'  (-9 is vital to prevent the docker attach
+		process from propagating the signal to the container.
+	from: https://stackoverflow.com/questions/25267372/correct-way-to-detach-from-a-container-without-stopping-it
 
 docker ps
 	show docker containers (by default, only running containers)
@@ -102,6 +130,9 @@ docker stats
 
 docker rmi imagename
 	removes a docker image
+
+docker log container-name
+	Shows a log of everything to stdout from the container
 
 Docker network stuff:
 ---------------------
