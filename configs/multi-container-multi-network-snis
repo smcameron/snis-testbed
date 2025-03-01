@@ -2,11 +2,26 @@
 
 NAME="multi-container-multi-network-snis"
 
+NET1="172.20.1.0/24"
+NET2="172.21.1.0/24"
+NET3="172.22.1.0/24"
+
+DOCKERNET1="snisnet-1"
+DOCKERNET2="snisnet-2"
+DOCKERNET3="snisnet-3"
+
+SSGL_IP="172.20.1.100"
+SSGL_DOCKER_NET="$DOCKERNET1"
+
+# NET1="10.1.1.0/24"
+# NET1="10.1.2.0/24"
+# NET1="10.1.3.0/24"
+
 echo
-echo "This configuration creates a number of ipvlan level 3 networks,"
-echo "setups up routing between them using the host as a router by setting"
+echo "This configuration creates 3 ipvlan layer 3 networks,"
+echo "sets up routing between them using the host as a router by setting"
 echo "up virtual network interfaces on each network and adding routes to"
-echo "the routing table."
+echo "the routing tables of the containers."
 echo
 echo "and ... TBD"
 echo
@@ -86,25 +101,25 @@ set_up_virtual_network_interfaces()
 	fi
 
 	echo "2. Create virtual network interfaces snis1, snis2 and snis3"
-	set_up_virtual_network_interface snis1 10.1.1.1/24 C8:AA:BB:CC:DD:00 10
-	set_up_virtual_network_interface snis2 10.1.2.1/24 C8:AA:BB:CC:DD:11 20
-	set_up_virtual_network_interface snis3 10.1.3.1/24 C8:AA:BB:CC:DD:22 30
+	set_up_virtual_network_interface snis1 "$NET1" C8:AA:BB:CC:DD:00 10
+	set_up_virtual_network_interface snis2 "$NET2" C8:AA:BB:CC:DD:11 20
+	set_up_virtual_network_interface snis3 "$NET3" C8:AA:BB:CC:DD:22 30
 }
 
 tear_down_docker_networks()
 {
 	echo "Tearing down docker networks"
-	docker network rm snisnet-1
-	docker network rm snisnet-2
-	docker network rm snisnet-3
+	docker network rm "$DOCKERNET1"
+	docker network rm "$DOCKERNET2"
+	docker network rm "$DOCKERNET3"
 }
 
 set_up_docker_networks()
 {
 	echo "Setting up docker networks"
-	docker network create -d ipvlan --subnet 10.1.1.0/24 -o parent=snis1.10 -o ipvlan_mode=l3 snisnet-1
-	docker network create -d ipvlan --subnet 10.1.2.0/24 -o parent=snis2.20 -o ipvlan_mode=l3 snisnet-2
-	docker network create -d ipvlan --subnet 10.1.3.0/24 -o parent=snis3.30 -o ipvlan_mode=l3 snisnet-3
+	docker network create -d ipvlan --subnet "$NET1" -o parent=snis1.10 -o ipvlan_mode=l3 "$DOCKERNET1"
+	docker network create -d ipvlan --subnet "$NET2" -o parent=snis2.20 -o ipvlan_mode=l3 "$DOCKERNET2"
+	docker network create -d ipvlan --subnet "$NET3" -o parent=snis3.30 -o ipvlan_mode=l3 "$DOCKERNET3"
 }
 
 setup()
@@ -118,12 +133,9 @@ setup()
 
 	set_up_docker_networks
 
-#	echo "Setting up bridge network 172.25.25.0/24 snis-net"
-#	docker network create -d bridge --subnet 172.25.25.0/24 snis-net
-
-#	echo "Setting up ssgl-container"
-#	run_docker_container "ssgl-container" "snis-server-multiverse-ssgl" "172.25.25.100" snis-net
-#	docker exec -d ssgl-container sh -c 'bin/ssgl_server'
+	echo "Setting up ssgl-container"
+	run_docker_container "ssgl-container" "snis-server-multiverse-ssgl" $SSGL_IP $SSGL_DOCKER_NET
+	docker exec -d ssgl-container sh -c 'bin/ssgl_server'
 #
 #	echo "Setting up snis-multiverse-container"
 #	run_docker_container "snis-multiverse-container" "snis-server-multiverse-ssgl" "172.25.25.101" snis-net
@@ -161,9 +173,11 @@ teardown()
 {
 	echo "Tearing down $NAME"
 
-	tear_down_virtual_network_interface snis1 10.1.1.1/24
-	tear_down_virtual_network_interface snis2 10.1.2.1/24
-	tear_down_virtual_network_interface snis3 10.1.3.1/24
+	stop_and_remove_docker_container "ssgl-container"
+
+	tear_down_virtual_network_interface snis1 "$NET1"
+	tear_down_virtual_network_interface snis2 "$NET2"
+	tear_down_virtual_network_interface snis3 "$NET3"
 
 	tear_down_docker_networks
 

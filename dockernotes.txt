@@ -240,6 +240,28 @@ docker network create
 
 				$ sudo ip link set dev eth0 up
 
+			OK, I tried this (am still trying this), and when attached to a container, trying
+			to add a route for the host network to route through the host, I get:
+
+			$ route add --net 10.200.200.0/24 metric 1024 172.20.1.1
+			NET/ROM: this needs to be written
+
+			$ ip address show
+			1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+			    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+			    inet 127.0.0.1/8 scope host lo
+			       valid_lft forever preferred_lft forever
+			    inet6 ::1/128 scope host 
+			       valid_lft forever preferred_lft forever
+			16: eth0@if13: <BROADCAST,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+			    link/ether c8:aa:bb:cc:dd:00 brd ff:ff:ff:ff:ff:ff
+			    inet 172.20.1.100/24 brd 172.20.1.255 scope global eth0
+			       valid_lft forever preferred_lft forever
+
+			Not quite sure what that means.  Does it mean some code in the kernel needs to be
+			written by a human to implement this feature?  Does it mean doing what I ask would
+			require overwriting something that's stored in ROM?  I dunno.
+
 docker inspect
 	docker inspect network-name
 	E.g: "docker inspect bridge"
