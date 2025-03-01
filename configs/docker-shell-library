@@ -23,6 +23,29 @@ exit_if_no_such_docker_image()
 	fi
 }
 
+run_docker_container()
+{
+	container="$1"
+	image="$2"
+	ipaddr="$3"
+	network="$4"
+
+	if [ "$ipaddr" = "" ]
+	then
+		docker run -idt --name "$container" "$image"
+		ec="$?"
+	else
+		docker run -idt --network "$network" --ip "$ipaddr" --name "$container" "$image"
+		ec="$?"
+	fi
+	if [ "$ec" != "0" ]
+	then
+		echo "Failed to run docker container $container with image $image" 1>&2
+		exit 1
+	fi
+	return 0
+}
+
 run_or_start_docker_container()
 {
 	container="$1"
@@ -45,13 +68,8 @@ run_or_start_docker_container()
 			return 0;
 		fi
 		echo "Running container $container"
-		docker run -idt --name "$container" "$image" 
-		if [ "$?" != "0" ]
-		then
-			echo "Failed to run docker container $container with image $image" 1>&2
-			exit 1
-		fi
-		return 0
+		run_docker_container "$container" "$image"
+		return $?
 	fi
 }
 
@@ -62,7 +80,7 @@ stop_docker_container()
 	if [ "$?" = 0 ]
 	then
 		echo "Stopping container $NAME"
-		docker stop "$NAME" 
+		docker stop "$NAME"
 		return;
 	fi
 	docker ps -a | grep ' '"$NAME"'$' > /dev/null

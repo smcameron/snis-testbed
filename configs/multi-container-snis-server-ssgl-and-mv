@@ -1,0 +1,102 @@
+#!/bin/sh
+
+NAME="multi-container-snis-servers-and-ssgl"
+
+echo
+echo "This configuration starts creates a network 172.25.25.0/24,"
+echo "and starts 5 containters:"
+echo "1 for ssgl_server"
+echo "1 for snis_multiverse (non-autowrangling-mode)"
+echo "3 for snis_server instances"
+echo
+
+# Source a litte docker shell library
+if [ -f ./docker-shell-library ]
+then
+	. ./docker-shell-library
+else
+	if [ -f ./configs/docker-shell-library ]
+	then
+		. ./configs//docker-shell-library
+	fi
+fi
+
+exit_if_group_not_docker
+
+usage()
+{
+	printf "Usage: $0 [ setup | teardown ]\n" 1>&2
+	exit 1
+}
+
+setup()
+{
+	echo "Setting up $NAME"
+	exit_if_no_such_docker_image snis-server-multiverse-ssgl
+	exit_if_no_such_docker_image snis-server-mv-ssgl-with-assets
+
+	echo "Setting up bridge network 172.25.25.0/24 snis-net"
+	docker network create -d bridge --subnet 172.25.25.0/24 snis-net
+
+	echo "Setting up ssgl-container"
+	run_docker_container "ssgl-container" "snis-server-multiverse-ssgl" "172.25.25.100" snis-net
+	docker exec -d ssgl-container sh -c 'bin/ssgl_server'
+
+	echo "Setting up snis-multiverse-container"
+	run_docker_container "snis-multiverse-container" "snis-server-multiverse-ssgl" "172.25.25.101" snis-net
+	docker exec -d snis-multiverse-container sh -c \
+		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+		bin/snis_multiverse --allow-remote-networks -L snisnet -l 172.25.25.100 -n - -L -'
+
+	echo "Setting up snis-server-default-container"
+	run_docker_container "snis-server-default-container" "snis-server-mv-ssgl-with-assets" "172.25.25.10" snis-net
+	docker exec -d snis-server-default-container sh -c \
+		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+		bin/snis_update_assets --force --destdir /home/snis/.local/share/space-nerds-in-space --srcdir ./share/snis &&  \
+		bin/snis_server --allow-remote-networks -L DEFAULT -m snisnet -s default -l 172.25.25.100 -p 45000'
+
+	echo "Setting up snis-server-polaris-container"
+	run_docker_container "snis-server-polaris-container" "snis-server-mv-ssgl-with-assets" "172.25.25.20" snis-net
+	docker exec -d snis-server-polaris-container sh -c \
+		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+		bin/snis_update_assets --force --destdir /home/snis/.local/share/space-nerds-in-space --srcdir ./share/snis &&  \
+		bin/snis_server --allow-remote-networks -L POLARIS -m snisnet -s polaris -l 172.25.25.100 -p 45000'
+
+	echo "Setting up snis-server-karado-container"
+	run_docker_container "snis-server-karado-container" "snis-server-mv-ssgl-with-assets" "172.25.25.30" snis-net
+	docker exec -d snis-server-karado-container sh -c \
+		'mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
+		bin/snis_update_assets --force --destdir /home/snis/.local/share/space-nerds-in-space --srcdir ./share/snis &&  \
+		bin/snis_server --allow-remote-networks -L KARADO -m snisnet -s karado -l 172.25.25.100 -p 45000'
+
+
+	printf "\n\nConnect your local snis_client to lobby at 172.25.25.100\n\n"
+	return 0;
+}
+
+teardown()
+{
+	echo "Tearing down $NAME"
+	stop_and_remove_docker_container "snis-server-karado-container"
+	stop_and_remove_docker_container "snis-server-polaris-container"
+	stop_and_remove_docker_container "snis-server-default-container"
+	stop_and_remove_docker_container "snis-multiverse-container"
+	stop_and_remove_docker_container "ssgl-container"
+	echo "Tearing down snis-net"
+	docker network rm snis-net
+	return $?
+}
+
+case "$1" in
+	setup)
+		setup
+		return $?
+		;;
+	teardown)
+		teardown
+		return $?
+		;;
+	*)
+		usage
+		;;
+esac
