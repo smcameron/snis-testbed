@@ -10,6 +10,9 @@
 # I don't know where the output from these programs is going which makes
 # it hard to debug.
 
+echo "This configuration runs ssgl_server, snis_multiverse with"
+echo "autowrangling turned on, and starts one snis_server instance,"
+echo "all in a single container."
 
 NAME="ssgl-mv-and-servers"
 IMAGE="snis-server-mv-ssgl-with-assets"
@@ -43,7 +46,7 @@ setup()
 		 mkdir -p /home/snis/.local/share/space-nerds-in-space ; \
 		 bin/snis_multiverse --allow-remote-networks -a -l localhost -n nickname -L narnia -e default 2>&1 > \
 			/home/snis/.local/share/space-nerds-in-space/snis_multiverse.log & \
-		 bin/snis_server --allow-remote-networks -l localhost -L DEFAULT -s default 2>&1 > \
+		 bin/snis_server --allow-remote-networks -l localhost -L DEFAULT -m narnia -s default 2>&1 > \
 			/home/snis/.local/share/space-nerds-in-space/snis_server_default.log &'
 	printf "\n\nConnect your local snis_client instance to lobby at 172.17.0.2\n\n"
 	return 0;
